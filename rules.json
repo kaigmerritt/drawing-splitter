@@ -1,0 +1,52 @@
+{
+  "Structural": {
+    "prefixes": ["S"],
+    "keywords": [
+      "STRUCTURAL",
+      "FOUNDATION",
+      "FRAMING",
+      "STEEL",
+      "JOIST",
+      "DECK",
+      "LATERAL",
+      "CONNECTION",
+      "BEAM",
+      "COLUMN"
+    ]
+  },
+  "Architectural": {
+    "prefixes": ["A"],
+    "keywords": [
+      "ARCHITECTURAL",
+      "FLOOR PLAN",
+      "ELEVATION",
+      "SECTION",
+      "DETAIL",
+      "DOOR SCHEDULE",
+      "REFLECTED CEILING",
+      "RCP",
+      "FINISH"
+    ]
+  },
+  "Mechanical": {
+    "prefixes": ["M"],
+    "keywords": [
+      "MECHANICAL",
+      "HVAC",
+      "DUCT",
+      "EXHAUST",
+      "AIR HANDLING",
+      "DIFFUSER",
+      "VENT"
+    ]
+  },
+  "Fire Protection": {
+    "prefixes": ["FP", "FS"],
+    "keywords": [
+      "FIRE PROTECTION",
+      "SPRINKLER",
+      "STANDPIPE",
+      "FIRE PUMP"
+    ]
+  }
+}

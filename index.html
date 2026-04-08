@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Drawing Splitter</title>
+  <link rel="stylesheet" href="styles.css" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Drawing Splitter</h1>
+    <p class="sub">Upload one PDF, review the page categories, then download separate PDFs.</p>
+
+    <div class="panel">
+      <input type="file" id="pdfFile" accept="application/pdf" />
+      <button id="analyzeBtn">Read PDF</button>
+      <button id="downloadBtn" disabled>Download Split PDFs</button>
+    </div>
+
+    <div id="status" class="status">Ready.</div>
+    <div id="results"></div>
+  </div>
+
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.7.76/pdf.worker.min.js";
+  </script>
+  <script src="app.js"></script>
+</body>
+</html>
