@@ -17,7 +17,7 @@ const resultsBox = document.getElementById("results");
 analyzeBtn.addEventListener("click", analyzePdf);
 copyRangesBtn.addEventListener("click", copyRanges);
 
-// -------- ANALYZE WITH SHEET DETECTION --------
+// -------- ANALYZE PDF (STABLE VERSION) --------
 async function analyzePdf() {
   try {
     const file = pdfFile.files[0];
@@ -26,40 +26,54 @@ async function analyzePdf() {
       return;
     }
 
-    statusBox.textContent = "Scanning pages...";
+    statusBox.textContent = "Loading PDF...";
 
-    const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+    // safer load
+    const fileBuffer = await file.arrayBuffer();
+
+    const loadingTask = pdfjsLib.getDocument({
+      data: fileBuffer
+    });
+
+    const pdf = await loadingTask.promise;
 
     pagesData = [];
 
+    statusBox.textContent = "Scanning pages...";
+
     for (let i = 1; i <= pdf.numPages; i++) {
-      if (i % 10 === 0) {
+      if (i % 5 === 0) {
         statusBox.textContent = `Scanning page ${i} of ${pdf.numPages}...`;
         await new Promise(r => setTimeout(r, 0));
       }
 
-      const page = await pdf.getPage(i);
-
-      const textContent = await page.getTextContent();
-      const text = textContent.items
-        .slice(0, 50)
-        .map(item => item.str)
-        .join(" ")
-        .toUpperCase();
-
       let category = "Other";
       let sheet = "";
 
-      // Detect sheet number (S1.1, A2.0, etc.)
-      const match = text.match(/\b(FP|FS|S|A|M)\s?-?\d+(\.\d+)?\b/);
+      try {
+        const page = await pdf.getPage(i);
 
-      if (match) {
-        sheet = match[0].replace(/\s+/g, "");
+        const textContent = await page.getTextContent();
+        const text = textContent.items
+          .slice(0, 50)
+          .map(item => item.str)
+          .join(" ")
+          .toUpperCase();
 
-        if (sheet.startsWith("S")) category = "Structural";
-        else if (sheet.startsWith("A")) category = "Architectural";
-        else if (sheet.startsWith("M")) category = "Mechanical";
-        else if (sheet.startsWith("FP") || sheet.startsWith("FS")) category = "Fire Protection";
+        // sheet detection
+        const match = text.match(/\b(FP|FS|S|A|M)\s?-?\d+(\.\d+)?\b/);
+
+        if (match) {
+          sheet = match[0].replace(/\s+/g, "");
+
+          if (sheet.startsWith("S")) category = "Structural";
+          else if (sheet.startsWith("A")) category = "Architectural";
+          else if (sheet.startsWith("M")) category = "Mechanical";
+          else if (sheet.startsWith("FP") || sheet.startsWith("FS")) category = "Fire Protection";
+        }
+
+      } catch (pageErr) {
+        console.warn(`Page ${i} failed`, pageErr);
       }
 
       pagesData.push({
@@ -73,8 +87,8 @@ async function analyzePdf() {
     statusBox.textContent = "Done. Review categories if needed.";
 
   } catch (err) {
-    console.error(err);
-    statusBox.textContent = "PDF too large or unreadable. Try smaller file.";
+    console.error("PDF LOAD ERROR:", err);
+    statusBox.textContent = "Could not read PDF. Try re-saving it in Bluebeam.";
   }
 }
 
@@ -109,7 +123,7 @@ function renderResults() {
   });
 }
 
-// -------- GENERATE PAGE RANGES --------
+// -------- GENERATE RANGES --------
 function generateRanges() {
   const ranges = {};
 
