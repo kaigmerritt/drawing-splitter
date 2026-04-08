@@ -1,5 +1,3 @@
-let rules = {};
-let sourcePdfBytes = null;
 let pagesData = [];
 
 const categories = [
@@ -12,23 +10,14 @@ const categories = [
 
 const pdfFile = document.getElementById("pdfFile");
 const analyzeBtn = document.getElementById("analyzeBtn");
-const downloadBtn = document.getElementById("downloadBtn");
+const copyRangesBtn = document.getElementById("copyRangesBtn");
 const statusBox = document.getElementById("status");
 const resultsBox = document.getElementById("results");
 
 analyzeBtn.addEventListener("click", analyzePdf);
-downloadBtn.addEventListener("click", downloadPdfs);
+copyRangesBtn.addEventListener("click", copyRanges);
 
-init().catch((err) => {
-  console.error(err);
-  statusBox.textContent = "Error loading rules.json.";
-});
-
-async function init() {
-  statusBox.textContent = "Ready.";
-}
-
-// ---------- ANALYZE (FAST MODE) ----------
+// -------- ANALYZE WITH SHEET DETECTION --------
 async function analyzePdf() {
   try {
     const file = pdfFile.files[0];
@@ -37,10 +26,9 @@ async function analyzePdf() {
       return;
     }
 
-    sourcePdfBytes = await file.arrayBuffer();
     statusBox.textContent = "Scanning pages...";
 
-    const pdf = await pdfjsLib.getDocument({ data: sourcePdfBytes }).promise;
+    const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
 
     pagesData = [];
 
@@ -50,41 +38,55 @@ async function analyzePdf() {
         await new Promise(r => setTimeout(r, 0));
       }
 
-      // FAST DEFAULT SORT (user will adjust)
-      let category = "Other";
+      const page = await pdf.getPage(i);
 
-      if (i < 20) category = "Other";
-      else if (i < 80) category = "Architectural";
-      else if (i < 140) category = "Structural";
-      else category = "Mechanical";
+      const textContent = await page.getTextContent();
+      const text = textContent.items
+        .slice(0, 50)
+        .map(item => item.str)
+        .join(" ")
+        .toUpperCase();
+
+      let category = "Other";
+      let sheet = "";
+
+      // Detect sheet number (S1.1, A2.0, etc.)
+      const match = text.match(/\b(FP|FS|S|A|M)\s?-?\d+(\.\d+)?\b/);
+
+      if (match) {
+        sheet = match[0].replace(/\s+/g, "");
+
+        if (sheet.startsWith("S")) category = "Structural";
+        else if (sheet.startsWith("A")) category = "Architectural";
+        else if (sheet.startsWith("M")) category = "Mechanical";
+        else if (sheet.startsWith("FP") || sheet.startsWith("FS")) category = "Fire Protection";
+      }
 
       pagesData.push({
         page: i,
-        sheetNumber: "",
-        text: "",
         category,
-        score: 1
+        sheet
       });
     }
 
     renderResults();
-    downloadBtn.disabled = false;
-    statusBox.textContent = "Done. Review categories, then download.";
+    statusBox.textContent = "Done. Review categories if needed.";
 
   } catch (err) {
     console.error(err);
-    statusBox.textContent = "Error processing PDF. File too large or corrupted.";
+    statusBox.textContent = "PDF too large or unreadable. Try smaller file.";
   }
 }
 
-// ---------- RENDER TABLE ----------
+// -------- RENDER TABLE --------
 function renderResults() {
-  let html = "<table><tr><th>Page</th><th>Category</th></tr>";
+  let html = "<table><tr><th>Page</th><th>Sheet</th><th>Category</th></tr>";
 
   for (const page of pagesData) {
     html += `
       <tr>
         <td>${page.page}</td>
+        <td>${page.sheet || "-"}</td>
         <td>
           <select data-page="${page.page}">
             ${categories.map(c =>
@@ -107,41 +109,49 @@ function renderResults() {
   });
 }
 
-// ---------- DOWNLOAD (CHUNKED SAFE MODE) ----------
-async function downloadPdfs() {
-  if (!sourcePdfBytes || pagesData.length === 0) {
-    statusBox.textContent = "Read a PDF first.";
-    return;
-  }
+// -------- GENERATE PAGE RANGES --------
+function generateRanges() {
+  const ranges = {};
 
-  const sourceDoc = await PDFLib.PDFDocument.load(sourcePdfBytes);
-
-  for (const category of categories) {
-    statusBox.textContent = `Creating ${category} PDF...`;
-
+  categories.forEach(cat => {
     const pages = pagesData
-      .filter(p => p.category === category)
-      .map(p => p.page - 1);
+      .filter(p => p.category === cat)
+      .map(p => p.page);
 
-    if (!pages.length) continue;
+    if (!pages.length) return;
 
-    const newDoc = await PDFLib.PDFDocument.create();
+    let start = pages[0];
+    let prev = pages[0];
+    const result = [];
 
-    // CHUNK PROCESSING (prevents crashes)
-    for (let i = 0; i < pages.length; i += 20) {
-      const chunk = pages.slice(i, i + 20);
-      const copied = await newDoc.copyPages(sourceDoc, chunk);
-      copied.forEach(p => newDoc.addPage(p));
+    for (let i = 1; i < pages.length; i++) {
+      if (pages[i] === prev + 1) {
+        prev = pages[i];
+      } else {
+        result.push(start === prev ? `${start}` : `${start}-${prev}`);
+        start = pages[i];
+        prev = pages[i];
+      }
     }
 
-    const bytes = await newDoc.save();
+    result.push(start === prev ? `${start}` : `${start}-${prev}`);
 
-    const blob = new Blob([bytes], { type: "application/pdf" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = category.replace(/\s+/g, "_") + ".pdf";
-    a.click();
+    ranges[cat] = result.join(", ");
+  });
+
+  return ranges;
+}
+
+// -------- COPY TO CLIPBOARD --------
+function copyRanges() {
+  const ranges = generateRanges();
+
+  let text = "";
+
+  for (const [cat, range] of Object.entries(ranges)) {
+    text += `${cat}: ${range}\n`;
   }
 
-  statusBox.textContent = "All PDFs created.";
+  navigator.clipboard.writeText(text);
+  statusBox.textContent = "Page ranges copied. Paste into Bluebeam.";
 }
